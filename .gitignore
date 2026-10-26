@@ -33,6 +33,7 @@ logs/
 src/**/bin/
 src/**/obj/
 local.settings.json
+appsettings.json
 
 # Rider
 _ReSharper*/
