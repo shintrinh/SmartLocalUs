@@ -1,3 +1,10 @@
+// Repo path: src/AirwayHVAC.SmsAi.Infrastructure/ServiceCollectionExtensions.cs
+// PATCHED FILE — full content. Only two changes vs the original:
+//  1. services.Configure<MetaOptions>(...) added next to the other options.
+//  2. IAiResponder registration switches on the "AiProvider" setting:
+//     "Meta" -> MetaResponder, anything else (default) -> OpenAiResponder.
+//     The Azure path is untouched, so SMS keeps working when AiProvider is unset.
+
 using AirwayHVAC.SmsAi.Application.Services;
 using AirwayHVAC.SmsAi.Domain.Interfaces;
 using AirwayHVAC.SmsAi.Infrastructure.Configuration;
@@ -17,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.Configure<TwilioOptions>(configuration.GetSection(TwilioOptions.SectionName));
         services.Configure<TwilioVoiceOptions>(configuration.GetSection(TwilioVoiceOptions.SectionName));
         services.Configure<AzureOpenAiOptions>(configuration.GetSection(AzureOpenAiOptions.SectionName));
+        services.Configure<MetaOptions>(configuration.GetSection(MetaOptions.SectionName));
         services.Configure<CosmosOptions>(configuration.GetSection(CosmosOptions.SectionName));
         services.Configure<TenantRoutingOptions>(configuration.GetSection(TenantRoutingOptions.SectionName));
 
@@ -33,7 +41,16 @@ public static class ServiceCollectionExtensions
             });
         });
 
-        services.AddScoped<IAiResponder, OpenAiResponder>();
+        var aiProvider = configuration["AiProvider"];
+        if (string.Equals(aiProvider, "Meta", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddScoped<IAiResponder, MetaResponder>();
+        }
+        else
+        {
+            services.AddScoped<IAiResponder, OpenAiResponder>();
+        }
+
         services.AddScoped<IOutboundSmsService, TwilioSmsService>();
 
         services.AddScoped<IConversationRepository, ConversationRepository>();
