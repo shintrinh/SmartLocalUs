@@ -1,6 +1,8 @@
 // Repo path: src/AirwayHVAC.SmsAi.Api/Program.cs
-// PATCHED FILE — full content. Only change vs the original: the AiProvider +
-// Meta env mappings added after the AzureOpenAi mappings.
+// PATCHED FILE — changes vs the original:
+//  1. The AiProvider + Meta env mappings added after the AzureOpenAi mappings.
+//  2. Day 5-6 auto-fallback (27/10): the Baseten env mappings added after the
+//     Meta mappings (Baseten:BaseUrl, Baseten:ApiKey, Baseten:Model).
 
 using AirwayHVAC.SmsAi.Application.UseCases;
 using AirwayHVAC.SmsAi.Infrastructure;
@@ -36,6 +38,10 @@ var host = new HostBuilder()
         AddIfNotEmpty(mappedSettings, "Meta:ApiKey", "META_API_KEY");
         AddIfNotEmpty(mappedSettings, "Meta:Model", "META_MODEL");
         AddIfNotEmpty(mappedSettings, "Meta:ReasoningEffort", "META_REASONING_EFFORT");
+
+        AddIfNotEmpty(mappedSettings, "Baseten:BaseUrl", "BASETEN_BASE_URL");
+        AddIfNotEmpty(mappedSettings, "Baseten:ApiKey", "BASETEN_API_KEY");
+        AddIfNotEmpty(mappedSettings, "Baseten:Model", "BASETEN_MODEL");
 
         AddIfNotEmpty(mappedSettings, "Cosmos:Endpoint", "COSMOS_ENDPOINT");
         AddIfNotEmpty(mappedSettings, "Cosmos:Key", "COSMOS_KEY");
