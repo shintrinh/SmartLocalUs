@@ -9,10 +9,17 @@
 //      second request WITHOUT tools, forcing a text answer. The tool records
 //      the structured booking request; it is not a booking backend — lead
 //      creation still belongs to LeadService, from conversation fields.
+//   3. Tool-call logging (27/10, sau test voice qua curl): every tool call
+//      is logged (name + arguments + result status), because a Completed
+//      conversation alone does not prove the tool ran. Optional ctor param
+//      so existing constructions keep compiling. NOTE: arguments can contain
+//      the caller's name — test runs use synthetic data; treat these logs
+//      accordingly with real customers.
 
 using AirwayHVAC.SmsAi.Domain.Entities;
 using AirwayHVAC.SmsAi.Domain.Interfaces;
 using AirwayHVAC.SmsAi.Infrastructure.Configuration;
+using Microsoft.Extensions.Logging;
 using OpenAI;
 using OpenAI.Chat;
 using System.ClientModel;
@@ -23,9 +30,12 @@ public sealed class OpenAiResponder : IAiResponder
 {
     private readonly AzureOpenAiOptions _options;
 
-    public OpenAiResponder(Microsoft.Extensions.Options.IOptions<AzureOpenAiOptions> options)
+    private readonly ILogger<OpenAiResponder>? _logger;
+
+    public OpenAiResponder(Microsoft.Extensions.Options.IOptions<AzureOpenAiOptions> options, ILogger<OpenAiResponder>? logger = null)
     {
         _options = options.Value;
+        _logger = logger;
     }
 
     public async Task<string> GenerateHvacResponseAsync(
@@ -98,6 +108,8 @@ public sealed class OpenAiResponder : IAiResponder
         followup.Add(new AssistantChatMessage(completion.Value));
         foreach (var call in completion.Value.ToolCalls)
         {
+            var status = call.FunctionName == "book_appointment" ? "received" : "unknown_tool";
+            _logger?.LogInformation("Azure tool call {ToolName} ({Status}) arguments {Arguments}", call.FunctionName, status, call.FunctionArguments.ToString());
             var result = call.FunctionName == "book_appointment"
                 ? $"{{\"status\":\"received\",\"arguments\":{call.FunctionArguments}}}"
                 : "{\"status\":\"unknown_tool\"}";
@@ -105,6 +117,7 @@ public sealed class OpenAiResponder : IAiResponder
         }
 
         var second = await client.CompleteChatAsync(followup, cancellationToken: cancellationToken);
+        _logger?.LogInformation("Azure tool loop completed, returning final text.");
         return TextOf(second.Value);
     }
 

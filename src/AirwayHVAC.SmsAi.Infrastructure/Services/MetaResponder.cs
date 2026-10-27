@@ -16,6 +16,13 @@
 //      loop cannot run away. The tool records the structured booking request;
 //      it is not a booking backend — lead creation still belongs to
 //      LeadService, which builds leads from conversation fields.
+//   3. Tool-call logging (27/10, sau test voice qua curl): every tool call
+//      the model makes is logged (name + arguments + result status), because
+//      a Completed conversation alone does not prove the tool ran. The logger
+//      is an optional ctor param so existing constructions (incl. tests)
+//      keep compiling; when no logger is injected, logging is silently skipped.
+//      NOTE: arguments can contain the caller's name — test runs use
+//      synthetic data; treat these logs accordingly with real customers.
 
 using System.Net.Http.Headers;
 using System.Text;
@@ -23,6 +30,7 @@ using System.Text.Json;
 using AirwayHVAC.SmsAi.Domain.Entities;
 using AirwayHVAC.SmsAi.Domain.Interfaces;
 using AirwayHVAC.SmsAi.Infrastructure.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace AirwayHVAC.SmsAi.Infrastructure.Services;
@@ -33,9 +41,12 @@ public sealed class MetaResponder : IAiResponder
 
     private readonly MetaOptions _options;
 
-    public MetaResponder(IOptions<MetaOptions> options)
+    private readonly ILogger<MetaResponder>? _logger;
+
+    public MetaResponder(IOptions<MetaOptions> options, ILogger<MetaResponder>? logger = null)
     {
         _options = options.Value;
+        _logger = logger;
     }
 
     public async Task<string> GenerateHvacResponseAsync(
@@ -116,6 +127,8 @@ public sealed class MetaResponder : IAiResponder
                 var callId = call.GetProperty("id").GetString() ?? string.Empty;
                 var functionName = call.GetProperty("function").GetProperty("name").GetString() ?? string.Empty;
                 var arguments = call.GetProperty("function").GetProperty("arguments").GetString() ?? "{}";
+                var status = functionName == "book_appointment" ? "received" : "unknown_tool";
+                _logger?.LogInformation("Meta tool call {ToolName} ({Status}) arguments {Arguments}", functionName, status, arguments);
                 var result = functionName == "book_appointment"
                     ? $"{{\"status\":\"received\",\"arguments\":{arguments}}}"
                     : "{\"status\":\"unknown_tool\"}";
@@ -138,6 +151,7 @@ public sealed class MetaResponder : IAiResponder
                 .GetProperty("content")
                 .GetString();
 
+            _logger?.LogInformation("Meta tool loop completed, returning final text.");
             return (secondContent ?? string.Empty).Trim();
         }
 
