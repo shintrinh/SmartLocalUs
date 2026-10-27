@@ -1,5 +1,5 @@
 // Proves the fallback chain without any real provider: hand-written fakes
-// stand in for Azure (primary) and Baseten (secondary). A chain member that
+// stand in for the chain members (Meta, Azure, Baseten). A chain member that
 // throws or returns empty must be skipped, and total failure must return
 // empty — never an invented reply — so the orchestrator can use its static
 // flow reply exactly as it does for a single failed provider today.
@@ -50,6 +50,22 @@ public sealed class FallbackResponderTests
         Assert.Equal("Baseten answer", reply);
         Assert.Equal(1, primary.CallCount);
         Assert.Equal(1, secondary.CallCount);
+    }
+
+    [Fact]
+    public async Task FirstTwoFail_ThirdReplyReturned()
+    {
+        var meta = new FakeAiResponder { Throw = true };
+        var azure = new FakeAiResponder { Throw = true };
+        var baseten = new FakeAiResponder { Reply = "Baseten answer" };
+        var fallback = new FallbackResponder([meta, azure, baseten]);
+
+        var reply = await fallback.GenerateHvacResponseAsync(Tenant, "+15550001111", [], "Hello", CancellationToken.None);
+
+        Assert.Equal("Baseten answer", reply);
+        Assert.Equal(1, meta.CallCount);
+        Assert.Equal(1, azure.CallCount);
+        Assert.Equal(1, baseten.CallCount);
     }
 
     [Fact]
