@@ -125,6 +125,64 @@ public sealed class ConversationOrchestratorAiReplyTests
         Assert.Equal(ConversationStage.Urgency, turn2.Stage);
     }
 
+    [Fact]
+    public async Task AiReceivesStageContext_AfterIssueCaptured()
+    {
+        var fakeAi = new FakeAiResponder { Reply = "AI answer" };
+        var orchestrator = CreateOrchestrator(fakeAi);
+
+        await orchestrator.ProcessCustomerMessageAsync(
+            Tenant, "+15550001111", "AC not cooling", ConversationChannel.Sms,
+            DateTimeOffset.UtcNow, CancellationToken.None);
+
+        Assert.NotNull(fakeAi.LastContext);
+        Assert.Equal(ConversationStage.Address, fakeAi.LastContext!.Stage);
+        Assert.Equal("AC not cooling", fakeAi.LastContext.Issue);
+        Assert.Contains("Address", fakeAi.LastContext.MissingFields);
+        Assert.Contains("Urgency", fakeAi.LastContext.MissingFields);
+        Assert.Contains("PreferredTime", fakeAi.LastContext.MissingFields);
+        Assert.DoesNotContain("Issue", fakeAi.LastContext.MissingFields);
+    }
+
+    [Fact]
+    public async Task AiReceivesConfirmContext_WhenAllFieldsPresent()
+    {
+        var fakeAi = new FakeAiResponder { Reply = "AI answer" };
+        var orchestrator = CreateOrchestrator(fakeAi);
+
+        await orchestrator.ProcessCustomerMessageAsync(
+            Tenant, "+15550001111", "AC not cooling", ConversationChannel.Sms,
+            DateTimeOffset.UtcNow, CancellationToken.None);
+        await orchestrator.ProcessCustomerMessageAsync(
+            Tenant, "+15550001111", "123 Main St", ConversationChannel.Sms,
+            DateTimeOffset.UtcNow, CancellationToken.None);
+        await orchestrator.ProcessCustomerMessageAsync(
+            Tenant, "+15550001111", "emergency", ConversationChannel.Sms,
+            DateTimeOffset.UtcNow, CancellationToken.None);
+        var confirm = await orchestrator.ProcessCustomerMessageAsync(
+            Tenant, "+15550001111", "tomorrow 9am", ConversationChannel.Sms,
+            DateTimeOffset.UtcNow, CancellationToken.None);
+
+        Assert.Equal("AI answer", confirm.ReplyMessage);
+        Assert.Equal(ConversationStage.Confirm, confirm.Stage);
+        Assert.NotNull(fakeAi.LastContext);
+        Assert.Equal(ConversationStage.Confirm, fakeAi.LastContext!.Stage);
+        Assert.Empty(fakeAi.LastContext.MissingFields);
+    }
+
+    [Fact]
+    public void AiReplyContext_BuildStageGuidance_MentionsStageAndMissing()
+    {
+        var context = new AiReplyContext(
+            ConversationStage.Address, "AC not cooling", null, null, null);
+
+        var guidance = context.BuildStageGuidance();
+
+        Assert.Contains("Address", guidance, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("service address", guidance, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("AC not cooling", guidance, StringComparison.Ordinal);
+    }
+
     private static ConversationOrchestrator CreateOrchestrator(IAiResponder aiResponder)
     {
         var conversationService = new ConversationService(
@@ -156,18 +214,22 @@ public sealed class ConversationOrchestratorAiReplyTests
 
         public string? LastMessage { get; private set; }
 
+        public AiReplyContext? LastContext { get; private set; }
+
         public Task<string> GenerateHvacResponseAsync(
             Tenant tenant,
             string customerPhone,
             IReadOnlyCollection<Message> conversationHistory,
             string inboundMessage,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            AiReplyContext? context = null)
         {
             CallCount++;
             LastTenant = tenant;
             LastPhone = customerPhone;
             LastHistory = conversationHistory;
             LastMessage = inboundMessage;
+            LastContext = context;
             if (Throw)
             {
                 throw new InvalidOperationException("AI down");

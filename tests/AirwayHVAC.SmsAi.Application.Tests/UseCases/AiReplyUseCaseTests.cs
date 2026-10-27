@@ -145,7 +145,8 @@ public sealed class AiReplyUseCaseTests
             string customerPhone,
             IReadOnlyCollection<Message> conversationHistory,
             string inboundMessage,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            AiReplyContext? context = null)
             => Task.FromResult(Reply ?? string.Empty);
     }
 

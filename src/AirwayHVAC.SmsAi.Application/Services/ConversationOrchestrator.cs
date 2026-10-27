@@ -1,6 +1,7 @@
 // Repo path: src/AirwayHVAC.SmsAi.Application/Services/ConversationOrchestrator.cs
-// PATCHED (wiring IAiResponder into live paths, Day 1-2) — full file, replaces the original.
-// Change vs original (3 hunks):
+// PATCHED (wiring IAiResponder into live paths, Day 1-2; stage context, Day 3-4)
+// — full file, replaces the original.
+// Change vs original (4 hunks):
 //   1. New optional ctor param IAiResponder? aiResponder = null.
 //      Optional so existing manual constructions (incl. tests) keep compiling;
 //      DI injects it because IAiResponder is registered (Meta or Azure by AI_PROVIDER).
@@ -9,6 +10,12 @@
 //      reply text; on empty reply or exception, fall back to the flow-engine reply.
 //      The flow engine STILL runs first, so stage progression, lead handling and
 //      events are unchanged.
+//   4. Day 3-4 (hoàn thiện calling): after the flow engine runs, build an
+//      AiReplyContext from the conversation's post-turn stage + captured fields
+//      and pass it to IAiResponder, so the AI asks for the right next thing
+//      instead of diverging from the stage machine. The context is built from
+//      the conversation object only — no new data source, no history pollution
+//      (the guidance lives in the provider request, not in stored messages).
 // Sequence per Alen 27/10: Azure first (AI_PROVIDER unset -> OpenAiResponder,
 // his original design restored), then Meta (AI_PROVIDER=Meta -> MetaResponder).
 // SMS is Alen's MVP with no real customers running, so wiring both channels now
@@ -76,12 +83,21 @@ public sealed class ConversationOrchestrator
         // AI_PROVIDER unset -> Azure OpenAiResponder (Alen's original design);
         // AI_PROVIDER=Meta -> MetaResponder. SMS is MVP with no real customers,
         // so wiring it now carries no live-customer risk.
+        // Day 3-4: the flow engine already ran, so conversation.Stage and the
+        // captured fields are post-turn — exactly what the AI needs to stay
+        // on-stage (ask for the next missing field, read back at Confirm).
         if (_aiResponder is not null)
         {
             try
             {
+                var context = new AiReplyContext(
+                    conversation.Stage,
+                    conversation.Issue,
+                    conversation.Address,
+                    conversation.Urgency,
+                    conversation.PreferredTime);
                 var aiReply = await _aiResponder.GenerateHvacResponseAsync(
-                    tenant, customerPhoneNumber, conversation.Messages, messageBody, cancellationToken);
+                    tenant, customerPhoneNumber, conversation.Messages, messageBody, cancellationToken, context);
                 if (!string.IsNullOrWhiteSpace(aiReply))
                 {
                     reply = aiReply;
