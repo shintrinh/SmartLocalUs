@@ -1,3 +1,24 @@
+// Repo path: src/AirwayHVAC.SmsAi.Application/Services/ConversationOrchestrator.cs
+// PATCHED (wiring IAiResponder into live paths, Day 1-2) — full file, replaces the original.
+// Change vs original (3 hunks):
+//   1. New optional ctor param IAiResponder? aiResponder = null.
+//      Optional so existing manual constructions (incl. tests) keep compiling;
+//      DI injects it because IAiResponder is registered (Meta or Azure by AI_PROVIDER).
+//   2. New field _aiResponder.
+//   3. In ProcessCustomerMessageAsync, BOTH channels: try IAiResponder for the
+//      reply text; on empty reply or exception, fall back to the flow-engine reply.
+//      The flow engine STILL runs first, so stage progression, lead handling and
+//      events are unchanged.
+// Sequence per Alen 27/10: Azure first (AI_PROVIDER unset -> OpenAiResponder,
+// his original design restored), then Meta (AI_PROVIDER=Meta -> MetaResponder).
+// SMS is Alen's MVP with no real customers running, so wiring both channels now
+// is safe — no live-customer behavior change, no real customer data at stake.
+// Why this file: IAiResponder had NO production caller (verified 27/10 via code
+// search: GenerateHvacResponseAsync appears only in the interface + OpenAiResponder).
+// Both SMS and voice replies came from ConversationFlowEngine static replies, so the
+// Day-0 provider swap alone changes no live reply. This wiring is what actually
+// connects the providers (Azure first, then Meta) to the product.
+
 using AirwayHVAC.SmsAi.Domain.Enums;
 using AirwayHVAC.SmsAi.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -11,19 +32,22 @@ public sealed class ConversationOrchestrator
     private readonly EventService _eventService;
     private readonly ConversationFlowEngine _flowEngine;
     private readonly ILogger<ConversationOrchestrator> _logger;
+    private readonly IAiResponder? _aiResponder;
 
     public ConversationOrchestrator(
         ConversationService conversationService,
         LeadService leadService,
         EventService eventService,
         ConversationFlowEngine flowEngine,
-        ILogger<ConversationOrchestrator> logger)
+        ILogger<ConversationOrchestrator> logger,
+        IAiResponder? aiResponder = null)
     {
         _conversationService = conversationService;
         _leadService = leadService;
         _eventService = eventService;
         _flowEngine = flowEngine;
         _logger = logger;
+        _aiResponder = aiResponder;
     }
 
     public async Task<ConversationOrchestrationResult> ProcessCustomerMessageAsync(
@@ -44,6 +68,31 @@ public sealed class ConversationOrchestrator
         var flowResult = _flowEngine.ProcessCustomerMessage(conversation, messageBody, channel);
         var reply = flowResult.ReplyMessage;
 
+        // WIRING (hackathon Day 1-2, updated 27/10 per Alen: BOTH channels):
+        // the flow engine still drives stage, but the reply text comes from the
+        // AI provider when one is wired in. The customer message was already
+        // appended above, so conversation.Messages is the history IAiResponder
+        // expects (customer -> user, ai -> assistant). Provider sequence:
+        // AI_PROVIDER unset -> Azure OpenAiResponder (Alen's original design);
+        // AI_PROVIDER=Meta -> MetaResponder. SMS is MVP with no real customers,
+        // so wiring it now carries no live-customer risk.
+        if (_aiResponder is not null)
+        {
+            try
+            {
+                var aiReply = await _aiResponder.GenerateHvacResponseAsync(
+                    tenant, customerPhoneNumber, conversation.Messages, messageBody, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(aiReply))
+                {
+                    reply = aiReply;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "AI reply failed for tenant {TenantId}, falling back to flow reply", tenant.TenantId);
+            }
+        }
+
         conversation.AppendAiMessage(reply, DateTimeOffset.UtcNow);
 
         var (lead, created) = await _leadService.CreateOrUpdateFromConversationAsync(conversation, cancellationToken);
@@ -53,7 +102,7 @@ public sealed class ConversationOrchestrator
 
         if (created)
         {
-            await _eventService.TrackAsync(tenant.TenantId, "lead_created", customerPhoneNumber, conversation.Id, DateTimeOffset.UtcNow, cancellationToken);
+            await _eventService.TrackAsync(tenant.TenantId, "lead_created", customerPhoneNumber, conversation.Id, timestamp, cancellationToken);
         }
 
         if (previousStage != conversation.Stage)

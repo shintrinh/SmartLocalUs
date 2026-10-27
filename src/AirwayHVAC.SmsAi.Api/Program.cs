@@ -1,3 +1,7 @@
+// Repo path: src/AirwayHVAC.SmsAi.Api/Program.cs
+// PATCHED FILE — full content. Only change vs the original: the AiProvider +
+// Meta env mappings added after the AzureOpenAi mappings.
+
 using AirwayHVAC.SmsAi.Application.UseCases;
 using AirwayHVAC.SmsAi.Infrastructure;
 using Microsoft.Extensions.Configuration;
@@ -26,6 +30,12 @@ var host = new HostBuilder()
         AddIfNotEmpty(mappedSettings, "AzureOpenAi:Endpoint", "AZURE_OPENAI_ENDPOINT");
         AddIfNotEmpty(mappedSettings, "AzureOpenAi:ApiKey", "AZURE_OPENAI_KEY");
         AddIfNotEmpty(mappedSettings, "AzureOpenAi:DeploymentName", "AZURE_OPENAI_DEPLOYMENT");
+
+        AddIfNotEmpty(mappedSettings, "AiProvider", "AI_PROVIDER");
+        AddIfNotEmpty(mappedSettings, "Meta:BaseUrl", "META_BASE_URL");
+        AddIfNotEmpty(mappedSettings, "Meta:ApiKey", "META_API_KEY");
+        AddIfNotEmpty(mappedSettings, "Meta:Model", "META_MODEL");
+        AddIfNotEmpty(mappedSettings, "Meta:ReasoningEffort", "META_REASONING_EFFORT");
 
         AddIfNotEmpty(mappedSettings, "Cosmos:Endpoint", "COSMOS_ENDPOINT");
         AddIfNotEmpty(mappedSettings, "Cosmos:Key", "COSMOS_KEY");
