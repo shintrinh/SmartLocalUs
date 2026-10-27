@@ -15,6 +15,7 @@ using AirwayHVAC.SmsAi.Domain.Enums;
 using AirwayHVAC.SmsAi.Domain.Interfaces;
 using AirwayHVAC.SmsAi.Infrastructure.Configuration;
 using AirwayHVAC.SmsAi.Infrastructure.Services;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -127,13 +128,72 @@ public sealed class MetaResponderToolLoopTests
         Assert.Contains("Address", server.Bodies[0], StringComparison.Ordinal);
     }
 
-    private static MetaResponder CreateResponder(int port)
+    [Fact]
+    public async Task ToolCall_LogsToolNameAndArguments()
+    {
+        var toolResponse = JsonSerializer.Serialize(new
+        {
+            choices = new[]
+            {
+                new
+                {
+                    message = new
+                    {
+                        role = "assistant",
+                        content = (string?)null,
+                        tool_calls = new[]
+                        {
+                            new
+                            {
+                                id = "call_1",
+                                type = "function",
+                                function = new
+                                {
+                                    name = "book_appointment",
+                                    arguments = "{\"caller_name\":\"Maria\",\"day\":\"Saturday\",\"service\":\"haircut\"}"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        var finalResponse = JsonSerializer.Serialize(new
+        {
+            choices = new[]
+            {
+                new
+                {
+                    message = new
+                    {
+                        role = "assistant",
+                        content = "Got it, Maria — haircut on Saturday is booked."
+                    }
+                }
+            }
+        });
+
+        await using var server = new StubApiServer([toolResponse, finalResponse]);
+        server.Start();
+        var logger = new CapturingLogger<MetaResponder>();
+        var responder = CreateResponder(server.Port, logger);
+
+        await responder.GenerateHvacResponseAsync(
+            Tenant, "+15550001111", [], "Book me a haircut on Saturday", CancellationToken.None);
+
+        await server.WaitAsync();
+        Assert.Contains(logger.Messages, m => m.Contains("book_appointment", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, m => m.Contains("Saturday", StringComparison.Ordinal));
+        Assert.Contains(logger.Messages, m => m.Contains("tool loop completed", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static MetaResponder CreateResponder(int port, ILogger<MetaResponder>? logger = null)
         => new(new StaticOptions<MetaOptions>(new MetaOptions
         {
             BaseUrl = $"http://127.0.0.1:{port}",
             ApiKey = "test-key",
             Model = "test-model"
-        }));
+        }), logger);
 
     private sealed class StaticOptions<T> : IOptions<T>
         where T : class
@@ -144,6 +204,24 @@ public sealed class MetaResponderToolLoopTests
         }
 
         public T Value { get; }
+    }
+
+    // Minimal capturing logger: proves the responder emits tool-call log lines
+    // without needing a logging provider in the test host.
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        public List<string> Messages { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull
+            => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add(formatter(state, exception));
+        }
     }
 
     // Minimal HTTP/1.1 stub: accepts a fixed number of POSTs, records their
