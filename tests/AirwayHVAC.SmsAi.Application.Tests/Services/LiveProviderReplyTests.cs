@@ -5,7 +5,7 @@
 // Each test SKIPS (visibly, via test output) when its credentials are missing,
 // so `dotnet test --filter LiveProvider` is safe to run any time:
 //   - Azure runs when AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY are set
-//     (AZURE_OPENAI_DEPLOYMENT optional, default gpt-4o-mini).
+//     (AZURE_OPENAI_DEPLOYMENT optional, default gpt-6-luna-1).
 //   - Meta runs when META_API_KEY is set
 //     (META_BASE_URL / META_MODEL optional, defaults api.meta.ai/v1 + muse-spark-1.3).
 // The message sent is synthetic ("AC not cooling") — never real customer data,
@@ -68,7 +68,7 @@ public sealed class LiveProviderReplyTests
         {
             Endpoint = endpoint,
             ApiKey = apiKey,
-            DeploymentName = string.IsNullOrWhiteSpace(deployment) ? "gpt-4o-mini" : deployment
+            DeploymentName = string.IsNullOrWhiteSpace(deployment) ? "gpt-6-luna-1" : deployment
         }));
 
         var reply = await RunThroughOrchestrator(provider);
