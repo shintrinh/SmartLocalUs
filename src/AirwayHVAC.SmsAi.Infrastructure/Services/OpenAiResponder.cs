@@ -15,6 +15,17 @@
 //      so existing constructions keep compiling. NOTE: arguments can contain
 //      the caller's name — test runs use synthetic data; treat these logs
 //      accordingly with real customers.
+//   4. NO tools on the Azure request (28/10): gpt-6-luna-1 returns HTTP 400
+//      on /v1/chat/completions when function tools are combined with
+//      reasoning ("Function tools with reasoning_effort are not supported
+//      for gpt-6-luna-1"), proven live 28/10 via the fallback chain — every
+//      Azure turn failed with this 400 while Meta (401) fell through to
+//      Baseten. The app never sets reasoning_effort (Azure.AI.OpenAI 2.1.0
+//      has no such option); the model reasons by default, so any tools
+//      request 400s. Booking still works without the tool: LeadService
+//      builds the lead from conversation fields, not from tool results.
+//      To re-enable Azure tool calls, use /v1/responses or set
+//      reasoning_effort to 'none' (needs an SDK with ReasoningEffort support).
 
 using AirwayHVAC.SmsAi.Domain.Entities;
 using AirwayHVAC.SmsAi.Domain.Interfaces;
@@ -78,22 +89,11 @@ public sealed class OpenAiResponder : IAiResponder
 
         messages.Add(new UserChatMessage(inboundMessage));
 
+        // No tools on this request — see header note 4. The tool-round code
+        // below is kept intentionally so Azure tool calls can be re-enabled
+        // later without reconstructing it; with no tools in the request the
+        // model always answers in text and ToolCalls is empty.
         var options = new ChatCompletionOptions();
-        options.Tools.Add(ChatTool.CreateFunctionTool(
-            "book_appointment",
-            "Record a booking request with the details the customer provided. Use it when the customer asks to book or schedule an appointment.",
-            BinaryData.FromObjectAsJson(new
-            {
-                type = "object",
-                properties = new
-                {
-                    caller_name = new { type = "string", description = "Customer name, if provided" },
-                    day = new { type = "string", description = "Day for the appointment, e.g. Saturday" },
-                    service = new { type = "string", description = "Service requested, e.g. haircut, AC repair" },
-                    time = new { type = "string", description = "Preferred time, if provided" }
-                },
-                required = new[] { "day", "service" }
-            })));
 
         var completion = await client.CompleteChatAsync(messages, options, cancellationToken);
         if (completion.Value.ToolCalls.Count == 0)
