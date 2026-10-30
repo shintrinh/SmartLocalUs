@@ -16,13 +16,13 @@ public sealed class FallbackResponderTests
 {
     private static readonly Tenant Tenant = new(
         "tenant-1",
-        "Acme HVAC",
         "client-1",
-        "https://example.com",
+        "Acme HVAC",
         "+18777804236",
+        "New York",
         "America/New_York",
-        "gpt-6-luna-1",
-        "You are an expert HVAC customer support assistant.");
+        new BusinessHours("08:00", "18:00"),
+        DateTimeOffset.UtcNow);
 
     [Fact]
     public async Task PrimaryReply_Returned_SecondaryNotCalled()
