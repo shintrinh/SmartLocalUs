@@ -9,8 +9,10 @@
 // "no AI answered", and the static reply is the honest fallback.
 // Production caller: ConversationOrchestrator, via IAiResponder, when
 // AiProvider is "Fallback" (see ServiceCollectionExtensions). Chain order
-// is fixed by the DI factory: Meta Model API first, Azure OpenAI second,
-// Baseten third.
+// is fixed by the DI factory: Meta Model API first, Baseten (Muse Spark Open)
+// second, Fireworks (Muse Spark Open) third. Azure OpenAI is temporarily
+// out of the chain (30/10); its code is kept, so restoring it is one line
+// in the DI factory.
 // NOTE: each member runs its own complete turn (including its own tool
 // loop) before the chain moves on; the chain does not split a turn.
 

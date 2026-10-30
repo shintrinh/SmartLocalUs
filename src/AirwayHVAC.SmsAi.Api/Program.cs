@@ -3,6 +3,8 @@
 //  1. The AiProvider + Meta env mappings added after the AzureOpenAi mappings.
 //  2. Day 5-6 auto-fallback (27/10): the Baseten env mappings added after the
 //     Meta mappings (Baseten:BaseUrl, Baseten:ApiKey, Baseten:Model).
+//  3. Fireworks tier (30/10): the Fireworks env mappings added after the
+//     Baseten mappings (Fireworks:BaseUrl, Fireworks:ApiKey, Fireworks:Model).
 
 using AirwayHVAC.SmsAi.Application.UseCases;
 using AirwayHVAC.SmsAi.Infrastructure;
@@ -42,6 +44,10 @@ var host = new HostBuilder()
         AddIfNotEmpty(mappedSettings, "Baseten:BaseUrl", "BASETEN_BASE_URL");
         AddIfNotEmpty(mappedSettings, "Baseten:ApiKey", "BASETEN_API_KEY");
         AddIfNotEmpty(mappedSettings, "Baseten:Model", "BASETEN_MODEL");
+
+        AddIfNotEmpty(mappedSettings, "Fireworks:BaseUrl", "FIREWORKS_BASE_URL");
+        AddIfNotEmpty(mappedSettings, "Fireworks:ApiKey", "FIREWORKS_API_KEY");
+        AddIfNotEmpty(mappedSettings, "Fireworks:Model", "FIREWORKS_MODEL");
 
         AddIfNotEmpty(mappedSettings, "Cosmos:Endpoint", "COSMOS_ENDPOINT");
         AddIfNotEmpty(mappedSettings, "Cosmos:Key", "COSMOS_KEY");
