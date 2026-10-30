@@ -7,8 +7,10 @@
 //     Baseten mappings (Fireworks:BaseUrl, Fireworks:ApiKey, Fireworks:Model).
 //  4. Modal tier (30/10): the Modal env mappings added after the
 //     Fireworks mappings (Modal:BaseUrl, Modal:TokenId, Modal:TokenSecret,
-//     Modal:Model). Modal auth needs both proxy token values; the DI factory
-//     composes them into the request key as "token-id.token-secret".
+//     Modal:Model, Modal:ReasoningEffort). Modal auth needs both proxy token
+//     values; the DI factory composes them into the request key as
+//     "token-id.token-secret". Modal rejects reasoning_effort "minimal"
+//     (HTTP 400); the default is "medium" (proven 30/10).
 
 using AirwayHVAC.SmsAi.Application.UseCases;
 using AirwayHVAC.SmsAi.Infrastructure;
@@ -57,6 +59,7 @@ var host = new HostBuilder()
         AddIfNotEmpty(mappedSettings, "Modal:TokenId", "MODAL_PROXY_TOKEN_ID");
         AddIfNotEmpty(mappedSettings, "Modal:TokenSecret", "MODAL_PROXY_TOKEN_SECRET");
         AddIfNotEmpty(mappedSettings, "Modal:Model", "MODAL_MODEL");
+        AddIfNotEmpty(mappedSettings, "Modal:ReasoningEffort", "MODAL_REASONING_EFFORT");
 
         AddIfNotEmpty(mappedSettings, "Cosmos:Endpoint", "COSMOS_ENDPOINT");
         AddIfNotEmpty(mappedSettings, "Cosmos:Key", "COSMOS_KEY");

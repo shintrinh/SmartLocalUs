@@ -4,8 +4,14 @@
 // fallback chain can bind a MetaResponder to Modal without touching the "Meta"
 // section (which stays pointed at api.meta.ai / muse-spark-1.3).
 // Bound from the "Modal" section; env mappings in Program.cs:
-// MODAL_BASE_URL, MODAL_PROXY_TOKEN_ID, MODAL_PROXY_TOKEN_SECRET, MODAL_MODEL.
-// If MODAL_BASE_URL / MODAL_MODEL are unset, the defaults below apply.
+// MODAL_BASE_URL, MODAL_PROXY_TOKEN_ID, MODAL_PROXY_TOKEN_SECRET, MODAL_MODEL,
+// MODAL_REASONING_EFFORT.
+// If MODAL_BASE_URL / MODAL_MODEL / MODAL_REASONING_EFFORT are unset, the
+// defaults below apply.
+// NOTE (30/10, proven by direct call): Modal REJECTS reasoning_effort
+// "minimal" with HTTP 400 and ACCEPTS "medium" — so the default here is
+// "medium", not "minimal" like the other legs. Do not change it back to
+// "minimal" without re-proving it against the Modal endpoint.
 // Modal auth needs BOTH proxy token values: the DI factory composes the
 // request key as "token-id.token-secret" (Modal's own format). If either
 // value is missing, the leg sends no key and fails per-call, so it is
@@ -26,7 +32,7 @@ public sealed class ModalOptions
 
     public string Model { get; init; } = "meta-models/Muse-Spark-Open-816B-A42B";
 
-    public string ReasoningEffort { get; init; } = "minimal";
+    public string ReasoningEffort { get; init; } = "medium";
 
     public int MaxOutputTokens { get; init; } = 1024;
 
