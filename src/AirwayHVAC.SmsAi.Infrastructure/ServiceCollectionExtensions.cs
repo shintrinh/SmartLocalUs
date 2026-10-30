@@ -8,10 +8,12 @@
 //     FallbackResponder chain: Meta Model API first, then Baseten
 //     (Muse Spark Open via a MetaResponder bound to the "Baseten" section),
 //     then Fireworks (Muse Spark Open via a MetaResponder bound to the
-//     "Fireworks" section). Azure OpenAI is temporarily out of the chain
-//     (30/10): its code and default branch are untouched, so restoring it
-//     is one line in the chain array below.
-//     If Meta throws or returns empty, the chain tries Baseten, then Fireworks;
+//     "Fireworks" section), then Modal (Muse Spark Open via a MetaResponder
+//     bound to the "Modal" section, 30/10). Azure OpenAI is temporarily out
+//     of the chain (30/10): its code and default branch are untouched, so
+//     restoring it is one line in the chain array below.
+//     If Meta throws or returns empty, the chain tries Baseten, then Fireworks,
+//     then Modal;
 //     if all fail, the chain returns empty and the orchestrator falls back
 //     to its static reply, exactly as it does for a single failed provider today.
 
@@ -39,6 +41,7 @@ public static class ServiceCollectionExtensions
         services.Configure<MetaOptions>(configuration.GetSection(MetaOptions.SectionName));
         services.Configure<BasetenOptions>(configuration.GetSection(BasetenOptions.SectionName));
         services.Configure<FireworksOptions>(configuration.GetSection(FireworksOptions.SectionName));
+        services.Configure<ModalOptions>(configuration.GetSection(ModalOptions.SectionName));
         services.Configure<CosmosOptions>(configuration.GetSection(CosmosOptions.SectionName));
         services.Configure<TenantRoutingOptions>(configuration.GetSection(TenantRoutingOptions.SectionName));
 
@@ -88,8 +91,21 @@ public static class ServiceCollectionExtensions
                 var fireworks = new MetaResponder(
                     Options.Create(fireworksMeta),
                     serviceProvider.GetService<ILogger<MetaResponder>>());
+                var modalConfig = serviceProvider.GetRequiredService<IOptions<ModalOptions>>().Value;
+                var modalMeta = new MetaOptions
+                {
+                    BaseUrl = modalConfig.BaseUrl,
+                    ApiKey = modalConfig.ApiKey,
+                    Model = modalConfig.Model,
+                    ReasoningEffort = modalConfig.ReasoningEffort,
+                    MaxOutputTokens = modalConfig.MaxOutputTokens,
+                    SystemPrompt = modalConfig.SystemPrompt,
+                };
+                var modal = new MetaResponder(
+                    Options.Create(modalMeta),
+                    serviceProvider.GetService<ILogger<MetaResponder>>());
                 var logger = serviceProvider.GetService<ILogger<FallbackResponder>>();
-                return new FallbackResponder([meta, baseten, fireworks], logger);
+                return new FallbackResponder([meta, baseten, fireworks, modal], logger);
             });
         }
         else if (string.Equals(aiProvider, "Meta", StringComparison.OrdinalIgnoreCase))

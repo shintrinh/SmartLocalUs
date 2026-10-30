@@ -5,6 +5,8 @@
 //     Meta mappings (Baseten:BaseUrl, Baseten:ApiKey, Baseten:Model).
 //  3. Fireworks tier (30/10): the Fireworks env mappings added after the
 //     Baseten mappings (Fireworks:BaseUrl, Fireworks:ApiKey, Fireworks:Model).
+//  4. Modal tier (30/10): the Modal env mappings added after the
+//     Fireworks mappings (Modal:BaseUrl, Modal:ApiKey, Modal:Model).
 
 using AirwayHVAC.SmsAi.Application.UseCases;
 using AirwayHVAC.SmsAi.Infrastructure;
@@ -48,6 +50,10 @@ var host = new HostBuilder()
         AddIfNotEmpty(mappedSettings, "Fireworks:BaseUrl", "FIREWORKS_BASE_URL");
         AddIfNotEmpty(mappedSettings, "Fireworks:ApiKey", "FIREWORKS_API_KEY");
         AddIfNotEmpty(mappedSettings, "Fireworks:Model", "FIREWORKS_MODEL");
+
+        AddIfNotEmpty(mappedSettings, "Modal:BaseUrl", "MODAL_BASE_URL");
+        AddIfNotEmpty(mappedSettings, "Modal:ApiKey", "MODAL_API_KEY");
+        AddIfNotEmpty(mappedSettings, "Modal:Model", "MODAL_MODEL");
 
         AddIfNotEmpty(mappedSettings, "Cosmos:Endpoint", "COSMOS_ENDPOINT");
         AddIfNotEmpty(mappedSettings, "Cosmos:Key", "COSMOS_KEY");
