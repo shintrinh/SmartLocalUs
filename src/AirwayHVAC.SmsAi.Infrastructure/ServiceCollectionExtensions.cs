@@ -95,7 +95,9 @@ public static class ServiceCollectionExtensions
                 var modalMeta = new MetaOptions
                 {
                     BaseUrl = modalConfig.BaseUrl,
-                    ApiKey = modalConfig.ApiKey,
+                    ApiKey = string.IsNullOrWhiteSpace(modalConfig.TokenId) || string.IsNullOrWhiteSpace(modalConfig.TokenSecret)
+                        ? string.Empty
+                        : modalConfig.TokenId + "." + modalConfig.TokenSecret,
                     Model = modalConfig.Model,
                     ReasoningEffort = modalConfig.ReasoningEffort,
                     MaxOutputTokens = modalConfig.MaxOutputTokens,
