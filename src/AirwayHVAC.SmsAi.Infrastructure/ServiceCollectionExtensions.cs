@@ -5,10 +5,13 @@
 //     "Meta" -> MetaResponder, anything else (default) -> OpenAiResponder.
 //     The Azure path is untouched, so SMS keeps working when AiProvider is unset.
 //  3. Day 5-6 auto-fallback (27/10): AiProvider "Fallback" registers a
-//     FallbackResponder chain: Meta Model API first, then Azure OpenAI
-//     (deployment from AzureOpenAiOptions, e.g. gpt-6-luna-1), then Baseten
-//     (Muse Spark Open via a MetaResponder bound to the "Baseten" section).
-//     If Meta throws or returns empty, the chain tries Azure, then Baseten;
+//     FallbackResponder chain: Meta Model API first, then Baseten
+//     (Muse Spark Open via a MetaResponder bound to the "Baseten" section),
+//     then Fireworks (Muse Spark Open via a MetaResponder bound to the
+//     "Fireworks" section). Azure OpenAI is temporarily out of the chain
+//     (30/10): its code and default branch are untouched, so restoring it
+//     is one line in the chain array below.
+//     If Meta throws or returns empty, the chain tries Baseten, then Fireworks;
 //     if all fail, the chain returns empty and the orchestrator falls back
 //     to its static reply, exactly as it does for a single failed provider today.
 
@@ -35,6 +38,7 @@ public static class ServiceCollectionExtensions
         services.Configure<AzureOpenAiOptions>(configuration.GetSection(AzureOpenAiOptions.SectionName));
         services.Configure<MetaOptions>(configuration.GetSection(MetaOptions.SectionName));
         services.Configure<BasetenOptions>(configuration.GetSection(BasetenOptions.SectionName));
+        services.Configure<FireworksOptions>(configuration.GetSection(FireworksOptions.SectionName));
         services.Configure<CosmosOptions>(configuration.GetSection(CosmosOptions.SectionName));
         services.Configure<TenantRoutingOptions>(configuration.GetSection(TenantRoutingOptions.SectionName));
 
@@ -55,11 +59,9 @@ public static class ServiceCollectionExtensions
         if (string.Equals(aiProvider, "Fallback", StringComparison.OrdinalIgnoreCase))
         {
             services.AddScoped<MetaResponder>();
-            services.AddScoped<OpenAiResponder>();
             services.AddScoped<IAiResponder>(static serviceProvider =>
             {
                 var meta = serviceProvider.GetRequiredService<MetaResponder>();
-                var azure = serviceProvider.GetRequiredService<OpenAiResponder>();
                 var basetenConfig = serviceProvider.GetRequiredService<IOptions<BasetenOptions>>().Value;
                 var basetenMeta = new MetaOptions
                 {
@@ -73,8 +75,21 @@ public static class ServiceCollectionExtensions
                 var baseten = new MetaResponder(
                     Options.Create(basetenMeta),
                     serviceProvider.GetService<ILogger<MetaResponder>>());
+                var fireworksConfig = serviceProvider.GetRequiredService<IOptions<FireworksOptions>>().Value;
+                var fireworksMeta = new MetaOptions
+                {
+                    BaseUrl = fireworksConfig.BaseUrl,
+                    ApiKey = fireworksConfig.ApiKey,
+                    Model = fireworksConfig.Model,
+                    ReasoningEffort = fireworksConfig.ReasoningEffort,
+                    MaxOutputTokens = fireworksConfig.MaxOutputTokens,
+                    SystemPrompt = fireworksConfig.SystemPrompt,
+                };
+                var fireworks = new MetaResponder(
+                    Options.Create(fireworksMeta),
+                    serviceProvider.GetService<ILogger<MetaResponder>>());
                 var logger = serviceProvider.GetService<ILogger<FallbackResponder>>();
-                return new FallbackResponder([meta, azure, baseten], logger);
+                return new FallbackResponder([meta, baseten, fireworks], logger);
             });
         }
         else if (string.Equals(aiProvider, "Meta", StringComparison.OrdinalIgnoreCase))
